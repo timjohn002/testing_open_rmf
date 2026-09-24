@@ -198,15 +198,23 @@ class RobotAdapter:
 
     def navigate(self, destination, execution):
         self.execution = execution
-        self.node.get_logger().info(
-            f'Commanding [{self.name}] to navigate to '
-            f'{destination.position} on map [{destination.map}]')
-        ok = self.api.navigate(
-            self.name, destination.position, destination.map,
-            destination.speed_limit)
+        dock_name = destination.dock
+        if dock_name:
+            # The nav graph lane into this waypoint has a dock_name, so RMF
+            # expects the robot's own docking manoeuvre, not a plain move.
+            self.node.get_logger().info(
+                f'Commanding [{self.name}] to dock at [{dock_name}]')
+            ok = self.api.dock(self.name, dock_name)
+        else:
+            self.node.get_logger().info(
+                f'Commanding [{self.name}] to navigate to '
+                f'{destination.position} on map [{destination.map}]')
+            ok = self.api.navigate(
+                self.name, destination.position, destination.map,
+                destination.speed_limit)
         if not ok:
             self.node.get_logger().error(
-                f'Vendor API rejected navigate for [{self.name}]')
+                f'Vendor API rejected command for [{self.name}]')
             self.execution = None
             self._replan()
 

@@ -117,3 +117,10 @@ def test_mir_status_parsing(monkeypatch):
     assert post[2]['mission_id'] == 'm1'
     assert {'id': 'orientation', 'value': pytest.approx(180.0)} in post[2]['parameters']
     assert api.is_command_completed('mir_1')
+
+
+def test_generic_rest_dock(mock_server):
+    api = GenericRestRobotAPI({'prefix': mock_server})
+    assert api.dock('r1', 'charger_dock')
+    api.get_data('r1')
+    assert not api.is_command_completed('r1')

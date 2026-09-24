@@ -17,6 +17,8 @@ Contract (all JSON, relative to ``fleet_manager.prefix``)::
          -> {"success": true, "command_id": 12}
     POST /robots/{name}/action    {"activity", "label"}
          -> {"success": true, "command_id": 13}
+    POST /robots/{name}/dock      {"dock": "charger_a1_dock"}
+         -> {"success": true, "command_id": 14}
     POST /robots/{name}/stop      {}  -> {"success": true}
     POST /robots/{name}/localize  {"map", "x", "y", "yaw"} -> {"success": true}
 
@@ -121,6 +123,9 @@ class GenericRestRobotAPI(RobotAPI):
     def start_activity(self, robot_name, activity, label) -> bool:
         return self._command(
             robot_name, 'action', {'activity': activity, 'label': label})
+
+    def dock(self, robot_name, dock_name) -> bool:
+        return self._command(robot_name, 'dock', {'dock': dock_name})
 
     def stop(self, robot_name) -> bool:
         return bool(self._post(robot_name, 'stop', {}).get('success'))

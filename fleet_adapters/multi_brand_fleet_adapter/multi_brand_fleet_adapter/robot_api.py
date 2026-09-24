@@ -79,6 +79,12 @@ class RobotAPI(ABC):
         """Start a vendor-specific action (dock, clean, lift a cart, ...)."""
         return False
 
+    def dock(self, robot_name: str, dock_name: str) -> bool:
+        """Run the docking manoeuvre named ``dock_name`` (from a nav graph
+        lane's ``dock_name``), e.g. onto a charger. Return False if the robot
+        cannot dock; the adapter then asks RMF to replan."""
+        return False
+
     def localize(
         self, robot_name: str, pose: list[float], map_name: str
     ) -> bool:

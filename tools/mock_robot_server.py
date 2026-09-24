@@ -111,7 +111,7 @@ class MockRobot:
 
 ROBOTS: dict[str, MockRobot] = {}
 LOCK = threading.Lock()
-ROUTE = re.compile(r'^/robots/([^/]+)/(state|navigate|action|stop|localize)$')
+ROUTE = re.compile(r'^/robots/([^/]+)/(state|navigate|action|dock|stop|localize)$')
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -161,7 +161,7 @@ class Handler(BaseHTTPRequestHandler):
                 if verb == 'navigate':
                     cid = robot.navigate(body)
                     return self._send(200, {'success': True, 'command_id': cid})
-                if verb == 'action':
+                if verb in ('action', 'dock'):
                     cid = robot.action(body)
                     return self._send(200, {'success': True, 'command_id': cid})
                 if verb == 'stop':

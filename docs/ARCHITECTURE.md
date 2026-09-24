@@ -65,4 +65,7 @@ this portal against the same api-server.
 - There's no teleoperation or manual joystick. RMF is waypoint- and task-based by design.
 - `drivers/mir.py` is written from the MiR REST API v2.0.0 docs and hasn't been
   tested on hardware here. Check field names against your robot's API docs.
+- Only the Full Control level is implemented. Robots that can only be paused
+  (Traffic Light) or only observed (Read Only) need a different adapter; see
+  the README's control-level table.
 - Multi-floor sites need lifts in the nav graph and a lift adapter. They aren't covered here.

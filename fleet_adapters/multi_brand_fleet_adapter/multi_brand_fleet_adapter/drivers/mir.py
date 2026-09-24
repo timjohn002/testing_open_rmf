@@ -21,6 +21,8 @@ One-time setup on each robot (MiR web interface):
     move_mission_guid: "..."       # mission from step 1
     action_missions:               # optional: RMF action -> mission GUID
       dock: "..."
+    dock_missions:                 # optional: nav graph dock_name -> mission GUID
+      charger_b1_dock: "..."
     robots:                        # per-robot REST endpoint
       mir_1: {prefix: "http://192.168.12.20/api/v2.0.0"}
 """
@@ -57,6 +59,7 @@ class MiRRobotAPI(RobotAPI):
         }
         self.move_mission_guid = config.get('move_mission_guid', '')
         self.action_missions = config.get('action_missions', {}) or {}
+        self.dock_missions = config.get('dock_missions', {}) or {}
         self.prefixes = {
             name: robot['prefix'].rstrip('/')
             for name, robot in (config.get('robots') or {}).items()
@@ -140,6 +143,12 @@ class MiRRobotAPI(RobotAPI):
 
     def start_activity(self, robot_name, activity, label) -> bool:
         guid = self.action_missions.get(activity)
+        if not guid:
+            return False
+        return self._queue_mission(robot_name, guid)
+
+    def dock(self, robot_name, dock_name) -> bool:
+        guid = self.dock_missions.get(dock_name)
         if not guid:
             return False
         return self._queue_mission(robot_name, guid)

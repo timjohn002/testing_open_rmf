@@ -43,9 +43,36 @@ repository uses simulation only for demos.
    gRPC, MQTT, a ROS topic or a fleet manager. Robots with only a closed
    remote control can't be integrated.
 4. **A shared coordinate frame.** Each vendor's map has its own origin. For
-   each fleet, you give 2 or more matching points (`reference_coordinates` in
-   the fleet config). The adapter then converts between the vendor's frame and
+   each fleet, you give matching points (`reference_coordinates` in the fleet
+   config; 4 or more are recommended). The adapter then converts between the vendor's frame and
    the nav graph's frame.
+
+### Which control level each brand needs
+
+The [RMF book's fleet adapter section](https://osrf.github.io/ros2multirobotbook/rmf-core.html#fleet-adapters)
+sorts robot APIs into four levels of control. Check each brand against it
+before you buy or integrate:
+
+| Level | The robot's API must let RMF… | In this repo | In the portal |
+|---|---|---|---|
+| **Full Control** | read pose and battery, send it to any [x, y, yaw], stop it, tell when it arrived, and ideally dock, re-localize and run processes | ✅ `multi_brand_fleet_adapter` (EasyFullControl) | Monitor + all commands |
+| **Traffic Light** | read pose and battery, pause and resume it. The robot plans its own routes | ❌ Not yet. Upstream now has `EasyTrafficLight` and a [traffic_light_adapter_template](https://github.com/open-rmf/fleet_adapter_template/tree/main/traffic_light_adapter_template). The book predates both | Monitor only; RMF can't send it tasks |
+| **Read Only** | read pose, its planned path and battery. No control | ❌ Not yet (`read_only` adapter in rmf_fleet_adapter) | Monitor only |
+| **No Interface** | nothing | Not compatible with RMF | – |
+
+Two rules from the book matter for a mixed site:
+
+- **At most one Read Only fleet per shared space.** Two fleets that RMF
+  can't steer will deadlock each other.
+- **The more control, the better.** Full Control lets RMF plan every path,
+  so it can avoid stops. Traffic Light robots can only be paused, so they
+  give way more often.
+
+A brand whose API only accepts pre-programmed missions or stations can still
+be Full Control. Map each nav-graph waypoint to a vendor mission, as the MiR
+driver does. For a charger or other docking waypoint, give the nav-graph
+lane a `dock_name`; the adapter then calls the driver's `dock()` instead of
+a plain move.
 
 Before you write a driver, check whether an adapter already exists for your
 brand. For example, [free_fleet](https://github.com/open-rmf/free_fleet)
