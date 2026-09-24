@@ -32,6 +32,20 @@ the demos, simulation only replaces real robots.
 7. Fleet and task states flow back to the api-server over
    `ws://…/_internal`. The portal polls `/fleets` and `/tasks` from there.
 
+## Request flow: a self-navigating (Traffic Light) robot
+
+1. The vendor's fleet manager gives the robot a route. The driver reports it
+   as `current_path`.
+2. The adapter registers the route with RMF (`follow_new_path`) and holds the
+   robot at the start until RMF allows it to go (`waiting_at(0)` → Resume).
+3. While the robot drives, the adapter reports progress (`moving_from`) a
+   few times a second. RMF answers continue, stop at the next waypoint
+   (`pause_at_checkpoint`), or pause now (`pause`).
+4. When the route is done, the adapter reports arrival and the robot goes
+   idle in RMF's schedule.
+5. The adapter also sends the robot's state to the api-server, so it appears
+   in `/fleets` and in the portal (as monitor-only).
+
 ## Patrol / dispatch across brands
 
 `POST /api/tasks/patrol` without a fleet sends a `dispatch_task_request`. The
@@ -65,7 +79,10 @@ this portal against the same api-server.
 - There's no teleoperation or manual joystick. RMF is waypoint- and task-based by design.
 - `drivers/mir.py` is written from the MiR REST API v2.0.0 docs and hasn't been
   tested on hardware here. Check field names against your robot's API docs.
-- Only the Full Control level is implemented. Robots that can only be paused
-  (Traffic Light) or only observed (Read Only) need a different adapter; see
-  the README's control-level table.
+- Full Control and Traffic Light are implemented. Read Only robots
+  (observed only) need the `read_only` adapter from rmf_fleet_adapter, which
+  isn't set up here.
+- The portal doesn't offer manual pause/resume for Traffic Light robots on
+  purpose: RMF is pausing and resuming them to prevent collisions, and an
+  operator resume could override that.
 - Multi-floor sites need lifts in the nav graph and a lift adapter. They aren't covered here.

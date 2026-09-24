@@ -4,8 +4,9 @@
   <name>multi_brand_fleet_adapter</name>
   <version>0.1.0</version>
   <description>
-    One Open-RMF EasyFullControl fleet adapter that can drive robots of
-    different brands through pluggable vendor drivers.
+    Open-RMF fleet adapters for robots of different brands, through
+    pluggable vendor drivers: EasyFullControl (RMF plans the paths) and
+    EasyTrafficLight (robots plan their own paths, RMF pauses/resumes them).
   </description>
   <maintainer email="timjohnargota@gmail.com">timjohn002</maintainer>
   <license>Apache License 2.0</license>
@@ -14,6 +15,7 @@
   <exec_depend>rclpy</exec_depend>
   <exec_depend>python3-yaml</exec_depend>
   <exec_depend>python3-requests</exec_depend>
+  <exec_depend>python3-websocket</exec_depend>
 
   <test_depend>python3-pytest</test_depend>
 

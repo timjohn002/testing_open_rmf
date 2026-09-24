@@ -1,0 +1,30 @@
+# Fleet "brand_c": self-navigating robots at the Traffic Light control level.
+# The vendor's own fleet manager decides where they go; RMF only sees their
+# routes and pauses/resumes them to avoid conflicts with the other fleets.
+# RMF cannot dispatch tasks to them, so the portal shows them as monitor-only.
+# For the local demo this points at tools/mock_robot_server.py (--tl-robot).
+
+rmf_fleet:
+  name: "brand_c"
+  limits:
+    linear: [0.5, 0.75]      # [max_velocity_m_s, max_accel_m_s2]
+    angular: [0.6, 2.0]      # [max_velocity_rad_s, max_accel_rad_s2]
+  profile:
+    footprint: 0.35          # circle radius (m)
+    vicinity: 0.6            # circle radius for traffic vicinity (m)
+  robots:
+    brand_c_1: {}
+  robot_state_update_frequency: 2.0   # Hz, polling the vendor API
+  publish_fleet_state: 1.0            # Hz, reporting to the api-server
+
+fleet_manager:
+  driver: generic_rest
+  prefix: "http://127.0.0.1:7001"
+  timeout: 1.0
+
+# Optional. Leave out when the robots already use the RMF frame.
+# conversions:
+#   reference_coordinates:
+#     L1:
+#       rmf:   [[0.0, 0.0], [10.0, 0.0], [10.0, 4.0], [0.0, 4.0]]
+#       robot: [[12.3, 4.1], [22.3, 4.0], [22.4, 8.0], [12.4, 8.1]]

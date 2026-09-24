@@ -81,7 +81,7 @@ function placeOptions(select, keepValue = true) {
   if (keepValue && prev) select.value = prev;
 }
 
-function makeRobotRow(fleet, robot) {
+function makeRobotRow(fleet, robot, control = 'full') {
   const key = `${fleet}/${robot.name}`;
   const status = el('span', { class: 'pill' });
   const fill = el('div', { class: 'fill' });
@@ -128,11 +128,18 @@ function makeRobotRow(fleet, robot) {
     },
   }, '');
 
+  // Traffic Light / Read Only robots drive their own routes: RMF can only
+  // pause them for traffic, so there is nothing for an operator to command.
+  const actions = control === 'monitor'
+    ? el('div', { class: 'actions' }, el('span', { class: 'monitor-note' },
+      'Self-navigating · RMF pauses it for traffic'))
+    : el('div', { class: 'actions' }, place, go, cancel, commission);
+
   const row = el('div', { class: 'robot' },
     el('div', {}, el('div', { class: 'name' }, robot.name), where),
     el('div', {}, status),
     el('div', {}, el('div', { class: 'battery' }, el('div', { class: 'bar' }, fill), pct), task),
-    el('div', { class: 'actions' }, place, go, cancel, commission));
+    actions);
 
   const rows = { row, status, fill, pct, where, task, place, cancel, commission, current: robot };
   robotRows.set(key, rows);
@@ -150,8 +157,11 @@ function updateRobotRow(rows, robot) {
   rows.fill.className = `fill${b !== null && b < 15 ? ' crit' : b !== null && b < 30 ? ' low' : ''}`;
   const loc = robot.location;
   rows.where.textContent = loc ? `${loc.map} · ${loc.x.toFixed(1)}, ${loc.y.toFixed(1)}` : 'no location';
-  const issues = robot.issues.length ? ` · ⚠ ${robot.issues.length} issue(s)` : '';
-  rows.task.textContent = (robot.task_id ? `task ${robot.task_id}` : 'no task') + issues;
+  const waiting = robot.issues.some((i) => i.category === 'waiting_for_traffic');
+  const other = robot.issues.filter((i) => i.category !== 'waiting_for_traffic').length;
+  rows.task.textContent = (robot.task_id ? `task ${robot.task_id}` : 'no task')
+    + (waiting ? ' · waiting for traffic' : '')
+    + (other ? ` · ⚠ ${other} issue(s)` : '');
   rows.task.title = robot.issues.map((i) => `${i.category}: ${JSON.stringify(i.detail)}`).join('\n');
   rows.cancel.disabled = !robot.task_id;
   rows.commission.textContent = robot.commissioned ? 'Take offline' : 'Put in service';
@@ -168,10 +178,10 @@ function renderFleets() {
     fleetLayout = '';
     return;
   }
-  const layout = state.fleets.map((f) => `${f.name}:${f.robots.map((r) => r.name).join(',')}`).join('|');
+  const layout = state.fleets.map((f) => `${f.name}/${f.control}:${f.robots.map((r) => r.name).join(',')}`).join('|');
   for (const fleet of state.fleets) {
     for (const robot of fleet.robots) {
-      const rows = robotRows.get(`${fleet.name}/${robot.name}`) || makeRobotRow(fleet.name, robot);
+      const rows = robotRows.get(`${fleet.name}/${robot.name}`) || makeRobotRow(fleet.name, robot, fleet.control);
       updateRobotRow(rows, robot);
     }
   }
@@ -253,7 +263,7 @@ function renderTargets() {
   targetLayout = fleetLayout;
   const prev = select.value;
   const opts = [el('option', { value: '' }, 'Best available robot (any fleet)')];
-  for (const f of state.fleets) {
+  for (const f of state.fleets.filter((fl) => fl.control !== 'monitor')) {
     opts.push(el('option', { value: `${f.name}/` }, `Any robot in ${f.name}`));
     for (const r of f.robots) opts.push(el('option', { value: `${f.name}/${r.name}` }, `  ${f.name} / ${r.name}`));
   }

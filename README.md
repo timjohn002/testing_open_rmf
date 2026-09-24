@@ -14,11 +14,14 @@ no digital twin and no 3D model.
           Open-RMF core (headless)                   ← launch/rmf_core.launch.xml
           traffic schedule · task dispatcher (bidding) · supervisors
                 │
-     ┌──────────┴───────────┬────────────────────┐
- fleet adapter "brand_a" fleet adapter "brand_b"  fleet adapter "mir"   ← this repo
- driver: generic_rest    driver: generic_rest     driver: mir             (one per brand)
-     │                       │                        │
- vendor bridge/robot     vendor bridge/robot      MiR REST API on robot
+     ┌──────────┴───────────┬───────────────────────┬──────────────────────┐
+ Full Control            Full Control            Full Control           Traffic Light      ← this repo
+ fleet "brand_a"         fleet "brand_b"         fleet "mir"            fleet "brand_c"      (one adapter
+ driver: generic_rest    driver: generic_rest    driver: mir            driver: generic_rest  per fleet)
+     │                       │                       │                      │
+ vendor bridge/robot     vendor bridge/robot     MiR REST API on robot  vendor fleet manager
+ (RMF plans its paths)                                                  (plans its own paths;
+                                                                         RMF pauses/resumes)
 ```
 
 ## What you need (and what you don't)
@@ -56,7 +59,7 @@ before you buy or integrate:
 | Level | The robot's API must let RMF… | In this repo | In the portal |
 |---|---|---|---|
 | **Full Control** | read pose and battery, send it to any [x, y, yaw], stop it, tell when it arrived, and ideally dock, re-localize and run processes | ✅ `multi_brand_fleet_adapter` (EasyFullControl) | Monitor + all commands |
-| **Traffic Light** | read pose and battery, pause and resume it. The robot plans its own routes | ❌ Not yet. Upstream now has `EasyTrafficLight` and a [traffic_light_adapter_template](https://github.com/open-rmf/fleet_adapter_template/tree/main/traffic_light_adapter_template). The book predates both | Monitor only; RMF can't send it tasks |
+| **Traffic Light** | read pose, battery and the route the robot is driving; pause and resume it. The robot plans its own routes | ✅ `traffic_light_adapter` (EasyTrafficLight), based on the upstream [traffic_light_adapter_template](https://github.com/open-rmf/fleet_adapter_template/tree/main/traffic_light_adapter_template). The book predates both | Monitor only; RMF can't send it tasks |
 | **Read Only** | read pose, its planned path and battery. No control | ❌ Not yet (`read_only` adapter in rmf_fleet_adapter) | Monitor only |
 | **No Interface** | nothing | Not compatible with RMF | – |
 
@@ -90,9 +93,11 @@ vendors.
 | `…/config/*.yaml` | One config per fleet: limits, footprint, battery, chargers, driver settings |
 | `…/launch/rmf_core.launch.xml` | Headless RMF core (no RViz/Gazebo) |
 | `…/launch/site.launch.xml` | Core plus one adapter per fleet |
+| `…/multi_brand_fleet_adapter/traffic_light/` | Traffic Light adapter (EasyTrafficLight) for self-navigating robots: its own driver interface (`robot_api.py`), REST driver, and a reporter that shows these robots in the portal |
+| `…/config/brand_c_traffic_light.yaml` | Example Traffic Light fleet |
 | `maps/site/nav_graph.yaml` | Example hand-written navigation graph |
 | `portal/` | Web portal: FastAPI backend-for-frontend plus a UI with no build step |
-| `tools/mock_robot_server.py` | Fake robots that speak the generic REST contract, and a reference for writing a real bridge |
+| `tools/mock_robot_server.py` | Fake robots that speak the generic REST contracts: go-anywhere robots (`--robot`) and self-navigating ones that drive their own route (`--tl-robot`). Also a reference for writing a real bridge |
 | `tools/mock_rmf_api.py` | Stand-in for rmf-web's api-server, for UI work without ROS. It has no traffic management |
 
 ## Portal features
@@ -124,7 +129,7 @@ mkdir -p ~/rmf_ws/src && cd ~/rmf_ws/src
 ln -s /path/to/this/repo/fleet_adapters/multi_brand_fleet_adapter .
 cd ~/rmf_ws && colcon build --packages-select multi_brand_fleet_adapter
 source install/setup.bash
-pip install nudged           # only needed if you use reference_coordinates
+pip install nudged websocket-client  # nudged: only with reference_coordinates
 
 # 2. Fake robots (replace with real robots/bridges later)
 python3 /path/to/repo/tools/mock_robot_server.py --port 7001
@@ -133,7 +138,7 @@ python3 /path/to/repo/tools/mock_robot_server.py --port 7001
 #    (follow that repo's README: pnpm install / pipenv, then start the api-server).
 #    It listens on :8000 and fleet adapters connect to ws://localhost:8000/_internal
 
-# 4. RMF core + both fleet adapters
+# 4. RMF core + the two Full Control adapters + the Traffic Light adapter
 ros2 launch multi_brand_fleet_adapter site.launch.xml \
     nav_graph:=/path/to/repo/maps/site/nav_graph.yaml
 
@@ -160,12 +165,43 @@ set -a && . ./.env && set +a && python3 server.py
 
 The portal needs no changes. New fleets and robots appear automatically.
 
+### Adding a self-navigating (Traffic Light) brand
+
+Use this when the vendor's fleet manager decides the routes and only lets you
+pause and resume robots.
+
+1. **Driver.** Subclass `TrafficLightRobotAPI` in `traffic_light/drivers/`.
+   Implement `get_data` (pose, battery, the route being driven and the last
+   waypoint reached), `pause`, `resume` and `pause_at_checkpoint` ("stop when
+   you reach waypoint N"). *Or* expose the REST contract in
+   `traffic_light/drivers/generic_rest.py` from a bridge.
+2. **Config.** Copy `config/brand_c_traffic_light.yaml`. No nav graph or
+   chargers are needed, because RMF doesn't route these robots.
+3. **Launch.** Add a `traffic_light_adapter` `<node>` in `site.launch.xml`.
+4. **Portal.** Add the fleet name to `MONITOR_ONLY_FLEETS` in `portal/.env`.
+   Its robots are then shown without commands, and the portal refuses to
+   send them tasks.
+
+The robot's API must report its **planned route**, not just its position.
+RMF needs the route to predict where the robot will be. If the vendor can
+only report a position, the robot fits the Read Only level at best.
+
+The EasyTrafficLight API only publishes a ROS topic that the rmf-web
+api-server doesn't read. The adapter therefore also sends each robot's state
+to the api-server itself (`-s ws://…/_internal`), in the same message format
+Full Control adapters use. That's how these robots show up in the portal.
+
 ## Tests
 
 ```bash
 pip install pytest requests
 cd fleet_adapters/multi_brand_fleet_adapter && python3 -m pytest -q test
 ```
+
+The Traffic Light tests check the adapter's decisions (hold at the start of a
+route, gate at a waypoint, pause, resume, finish, error) against a stand-in
+for RMF's Python bindings, and the REST driver against the mock robot. They
+don't replace a run against real Open-RMF.
 
 ## Before production
 

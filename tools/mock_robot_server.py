@@ -3,15 +3,21 @@
 Mock robots that speak the generic REST contract (see
 fleet_adapters/multi_brand_fleet_adapter/.../drivers/generic_rest.py).
 
-This is NOT a simulator: robots are points that move in a straight line
-towards whatever pose they are sent to. It lets you run the full RMF stack
-and the web portal with no hardware and no Gazebo. It is also a reference for
-writing a real vendor bridge -- replace the fake motion with calls to the
-vendor's SDK/API.
+This is NOT a simulator: robots are points that move in straight lines. It
+lets you run the full RMF stack and the web portal with no hardware and no
+Gazebo. It is also a reference for writing a real vendor bridge -- replace
+the fake motion with calls to the vendor's SDK/API.
+
+Two kinds of robot:
+
+* ``--robot``     Full Control: goes wherever it is sent (navigate/stop/...).
+* ``--tl-robot``  Traffic Light: drives its own route back and forth and only
+                  accepts pause / resume / pause_at_checkpoint.
 
     python3 tools/mock_robot_server.py --port 7001 \
         --robot brand_a_1@L1:0,0 --robot brand_a_2@L1:0,2 \
-        --robot brand_b_1@L1:0,4
+        --robot brand_b_1@L1:0,4 \
+        --tl-robot "brand_c_1@L1:15,2;10,2;10,0;5,0"
 
 Only the Python standard library is used.
 """
@@ -78,6 +84,20 @@ class MockRobot:
         self.x, self.y = float(body['x']), float(body['y'])
         self.yaw = float(body.get('yaw', 0.0))
 
+    def handle(self, verb, body):
+        """Dispatch a POST; None means the verb is not supported."""
+        if verb == 'navigate':
+            return {'success': True, 'command_id': self.navigate(body)}
+        if verb in ('action', 'dock'):
+            return {'success': True, 'command_id': self.action(body)}
+        if verb == 'stop':
+            self.stop()
+        elif verb == 'localize':
+            self.localize(body)
+        else:
+            return None
+        return {'success': True}
+
     def step(self, dt):
         if self.action_until is not None:
             if time.time() >= self.action_until:
@@ -109,9 +129,108 @@ class MockRobot:
         self.battery = max(0.0, self.battery - DRAIN_PER_S * dt)
 
 
-ROBOTS: dict[str, MockRobot] = {}
+class TrafficLightMockRobot:
+    """Self-navigating robot: drives its route, then the reverse, forever.
+
+    Between routes it idles for IDLE_S seconds with no path, like a real
+    robot waiting for its next mission from the vendor's fleet manager.
+    """
+
+    IDLE_S = 4.0
+    FINISH_HOLD_S = 1.5  # keep reporting the finished path briefly
+
+    def __init__(self, name, map_name, route):
+        self.name = name
+        self.map = map_name
+        self.route = route
+        self.x, self.y = route[0]
+        self.yaw = 0.0
+        self.battery = 1.0
+        self.path = []
+        self.last_cp = -1
+        self.moving = False
+        self.paused = False
+        self.gate_cp = None
+        self.idle_until = time.time() + self.IDLE_S
+        self.finished_at = None
+        self.error = None
+
+    def _start_path(self):
+        pts = self.route
+        self.path = []
+        for i, (x, y) in enumerate(pts):
+            nx, ny = pts[min(i + 1, len(pts) - 1)]
+            yaw = math.atan2(ny - y, nx - x) if i + 1 < len(pts) else \
+                self.path[-1]['yaw'] if self.path else 0.0
+            self.path.append(
+                {'map_name': self.map, 'x': x, 'y': y, 'yaw': yaw})
+        self.last_cp = 0
+        self.paused = False
+        self.gate_cp = None
+        self.finished_at = None
+        self.route = list(reversed(self.route))  # come back next time
+
+    def state(self):
+        return {
+            'map': self.map,
+            'position': {'x': round(self.x, 3), 'y': round(self.y, 3),
+                         'yaw': round(self.yaw, 3)},
+            'battery': round(self.battery, 4),
+            'current_path': self.path,
+            'last_completed_checkpoint': self.last_cp,
+            'is_moving': self.moving,
+            'error': self.error,
+        }
+
+    def handle(self, verb, body):
+        if verb == 'pause':
+            self.paused = True
+        elif verb == 'resume':
+            self.paused = False
+            self.gate_cp = None
+        elif verb == 'pause_at_checkpoint':
+            self.gate_cp = int(body['checkpoint'])
+        else:
+            return None
+        return {'success': True}
+
+    def step(self, dt):
+        now = time.time()
+        if not self.path:
+            self.moving = False
+            if now >= self.idle_until:
+                self._start_path()
+            return
+        if self.finished_at is not None:
+            if now - self.finished_at >= self.FINISH_HOLD_S:
+                self.path, self.last_cp = [], -1
+                self.idle_until = now + self.IDLE_S
+            return
+        gated = self.gate_cp is not None and self.last_cp >= self.gate_cp
+        if self.paused or gated:
+            self.moving = False
+            return
+        target = self.path[self.last_cp + 1]
+        dx, dy = target['x'] - self.x, target['y'] - self.y
+        dist = math.hypot(dx, dy)
+        step = LINEAR_SPEED * dt
+        self.moving = True
+        if dist <= step:
+            self.x, self.y = target['x'], target['y']
+            self.last_cp += 1
+            if self.last_cp >= len(self.path) - 1:
+                self.moving = False
+                self.finished_at = now
+        else:
+            self.x += dx / dist * step
+            self.y += dy / dist * step
+            self.yaw = math.atan2(dy, dx)
+        self.battery = max(0.0, self.battery - DRAIN_PER_S * dt)
+
+
+ROBOTS: dict = {}
 LOCK = threading.Lock()
-ROUTE = re.compile(r'^/robots/([^/]+)/(state|navigate|action|dock|stop|localize)$')
+ROUTE = re.compile(r'^/robots/([^/]+)/([a-z_]+)$')
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -158,19 +277,12 @@ class Handler(BaseHTTPRequestHandler):
             return self._send(400, {'success': False, 'error': 'bad json'})
         with LOCK:
             try:
-                if verb == 'navigate':
-                    cid = robot.navigate(body)
-                    return self._send(200, {'success': True, 'command_id': cid})
-                if verb in ('action', 'dock'):
-                    cid = robot.action(body)
-                    return self._send(200, {'success': True, 'command_id': cid})
-                if verb == 'stop':
-                    robot.stop()
-                else:
-                    robot.localize(body)
+                resp = robot.handle(verb, body)
             except (KeyError, TypeError, ValueError) as e:
                 return self._send(400, {'success': False, 'error': str(e)})
-        self._send(200, {'success': True})
+        if resp is None:
+            return self._send(404, {'success': False, 'error': 'not found'})
+        self._send(200, resp)
 
 
 def physics_loop():
@@ -192,19 +304,37 @@ def parse_robot(spec):
     return MockRobot(name, map_name, *values)
 
 
+def parse_tl_robot(spec):
+    """name@map:x1,y1;x2,y2;..."""
+    name, rest = spec.split('@', 1)
+    map_name, pts = rest.split(':', 1)
+    route = [tuple(float(v) for v in p.split(',')) for p in pts.split(';')]
+    if len(route) < 2:
+        raise ValueError(f'{name}: a route needs at least 2 points')
+    return TrafficLightMockRobot(name, map_name, route)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--host', default='127.0.0.1')
     parser.add_argument('--port', type=int, default=7001)
     parser.add_argument(
         '--robot', action='append', default=[],
-        help='name@map:x,y[,yaw]  (repeatable)')
+        help='Full Control robot: name@map:x,y[,yaw]  (repeatable)')
+    parser.add_argument(
+        '--tl-robot', action='append', default=[],
+        help='Traffic Light robot: "name@map:x1,y1;x2,y2;..."  (repeatable)')
     args = parser.parse_args()
 
-    specs = args.robot or [
-        'brand_a_1@L1:0,0', 'brand_a_2@L1:0,2', 'brand_b_1@L1:0,4']
-    for spec in specs:
+    if not args.robot and not args.tl_robot:
+        args.robot = ['brand_a_1@L1:0,0', 'brand_a_2@L1:0,2',
+                      'brand_b_1@L1:0,4']
+        args.tl_robot = ['brand_c_1@L1:15,2;10,2;10,0;5,0']
+    for spec in args.robot:
         robot = parse_robot(spec)
+        ROBOTS[robot.name] = robot
+    for spec in args.tl_robot:
+        robot = parse_tl_robot(spec)
         ROBOTS[robot.name] = robot
 
     threading.Thread(target=physics_loop, daemon=True).start()

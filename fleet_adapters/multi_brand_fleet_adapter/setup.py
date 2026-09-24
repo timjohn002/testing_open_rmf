@@ -7,7 +7,12 @@ package_name = 'multi_brand_fleet_adapter'
 setup(
     name=package_name,
     version='0.1.0',
-    packages=[package_name, f'{package_name}.drivers'],
+    packages=[
+        package_name,
+        f'{package_name}.drivers',
+        f'{package_name}.traffic_light',
+        f'{package_name}.traffic_light.drivers',
+    ],
     data_files=[
         ('share/ament_index/resource_index/packages',
             ['resource/' + package_name]),
@@ -15,7 +20,8 @@ setup(
         ('share/' + package_name + '/config', glob('config/*.yaml')),
         ('share/' + package_name + '/launch', glob('launch/*.launch.xml')),
     ],
-    install_requires=['setuptools', 'requests', 'pyyaml', 'nudged'],
+    install_requires=[
+        'setuptools', 'requests', 'pyyaml', 'nudged', 'websocket-client'],
     zip_safe=True,
     maintainer='timjohn002',
     maintainer_email='timjohnargota@gmail.com',
@@ -25,6 +31,8 @@ setup(
     entry_points={
         'console_scripts': [
             'fleet_adapter=multi_brand_fleet_adapter.fleet_adapter:main',
+            'traffic_light_adapter='
+            'multi_brand_fleet_adapter.traffic_light.fleet_adapter:main',
         ],
     },
 )

@@ -12,10 +12,14 @@
     <arg name="server_uri" value="$(var server_uri)"/>
   </include>
 
-  <!-- Add one block like this per robot brand / fleet. -->
+  <!-- Full Control fleets: add one block like this per brand. -->
   <node pkg="multi_brand_fleet_adapter" exec="fleet_adapter" name="brand_a_fleet_adapter" output="both"
         args="-c $(var config_dir)/brand_a_fleet.yaml -n $(var nav_graph) -s $(var server_uri)"/>
 
   <node pkg="multi_brand_fleet_adapter" exec="fleet_adapter" name="brand_b_fleet_adapter" output="both"
         args="-c $(var config_dir)/brand_b_fleet.yaml -n $(var nav_graph) -s $(var server_uri)"/>
+
+  <!-- Traffic Light fleets (self-navigating robots). No nav graph needed. -->
+  <node pkg="multi_brand_fleet_adapter" exec="traffic_light_adapter" name="brand_c_traffic_light_adapter" output="both"
+        args="-c $(var config_dir)/brand_c_traffic_light.yaml -s $(var server_uri)"/>
 </launch>

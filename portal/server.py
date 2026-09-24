@@ -46,6 +46,10 @@ NAV_GRAPHS = [p for p in os.environ.get(
 ).split(os.pathsep) if p]
 PORTAL_USER = os.environ.get('PORTAL_USER', '')
 PORTAL_PASSWORD = os.environ.get('PORTAL_PASSWORD', '')
+# Traffic Light / Read Only fleets: RMF can see them but cannot send them
+# tasks, so the portal shows them without commands.
+MONITOR_ONLY_FLEETS = {f.strip() for f in os.environ.get(
+    'MONITOR_ONLY_FLEETS', 'brand_c').split(',') if f.strip()}
 
 app = FastAPI(title='Robot Control Portal')
 _basic = HTTPBasic(auto_error=False)
@@ -162,7 +166,12 @@ async def fleets(_: str = Depends(require_operator)):
                 'unix_millis_time': r.get('unix_millis_time'),
                 'commissioned': commission.get('dispatch_tasks', True),
             })
-        out.append({'name': fleet.get('name'), 'robots': robots})
+        name = fleet.get('name')
+        out.append({
+            'name': name,
+            'control': 'monitor' if name in MONITOR_ONLY_FLEETS else 'full',
+            'robots': robots,
+        })
     return out
 
 
@@ -207,9 +216,17 @@ async def site(_: str = Depends(require_operator)):
     return _load_site()
 
 
+def _require_commandable(fleet: Optional[str]):
+    if fleet in MONITOR_ONLY_FLEETS:
+        raise HTTPException(
+            400, f'Fleet [{fleet}] navigates on its own (Traffic Light / '
+                 'Read Only); RMF cannot send it tasks')
+
+
 @app.post('/api/robots/{fleet}/{robot}/go_to')
 async def go_to(fleet: str, robot: str, body: GoToRequest,
                 user: str = Depends(require_operator)):
+    _require_commandable(fleet)
     now = _now_ms()
     payload = {
         'type': 'robot_task_request',
@@ -235,6 +252,7 @@ async def go_to(fleet: str, robot: str, body: GoToRequest,
 
 @app.post('/api/tasks/patrol')
 async def patrol(body: PatrolRequest, user: str = Depends(require_operator)):
+    _require_commandable(body.fleet)
     now = _now_ms()
     request = {
         'category': 'patrol',
@@ -265,6 +283,7 @@ async def cancel(task_id: str, user: str = Depends(require_operator)):
 @app.post('/api/robots/{fleet}/{robot}/decommission')
 async def decommission(fleet: str, robot: str, body: DecommissionRequest,
                        _: str = Depends(require_operator)):
+    _require_commandable(fleet)
     return await rmf('POST', f'/fleets/{fleet}/decommission', params={
         'robot_name': robot,
         'reassign_tasks': str(body.reassign_tasks).lower(),
@@ -274,6 +293,7 @@ async def decommission(fleet: str, robot: str, body: DecommissionRequest,
 @app.post('/api/robots/{fleet}/{robot}/recommission')
 async def recommission(fleet: str, robot: str,
                        _: str = Depends(require_operator)):
+    _require_commandable(fleet)
     return await rmf('POST', f'/fleets/{fleet}/recommission',
                      params={'robot_name': robot})
 

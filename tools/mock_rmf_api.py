@@ -10,7 +10,11 @@ Use it to work on the UI; use the real stack to control robots.
 
     python3 tools/mock_robot_server.py &
     python3 tools/mock_rmf_api.py --robots-url http://127.0.0.1:7001 \
-        --fleet brand_a=brand_a_1,brand_a_2 --fleet brand_b=brand_b_1
+        --fleet brand_a=brand_a_1,brand_a_2 --fleet brand_b=brand_b_1 \
+        --monitor-fleet brand_c=brand_c_1
+
+``--monitor-fleet`` robots (Traffic Light) are only reported, never
+commanded -- as with the real api-server, where their adapter pushes state.
 """
 
 from __future__ import annotations
@@ -39,7 +43,8 @@ async def lifespan(_app):
 
 
 app = FastAPI(title='Mock rmf-web api-server', lifespan=lifespan)
-CFG = {'robots_url': 'http://127.0.0.1:7001', 'fleets': {}, 'places': {}}
+CFG = {'robots_url': 'http://127.0.0.1:7001', 'fleets': {}, 'monitor_fleets': {},
+       'places': {}}
 TASKS: dict[str, dict] = {}
 QUEUES: dict[str, list[str]] = {}  # robot -> task ids
 COMMISSION: dict[str, bool] = {}
@@ -99,6 +104,25 @@ async def fleets():
                 'commission': {'dispatch_tasks': COMMISSION.get(name, True),
                                'direct_tasks': COMMISSION.get(name, True),
                                'idle_behavior': True},
+            }
+        out.append({'name': fleet, 'robots': robot_map})
+    for fleet, robots in CFG['monitor_fleets'].items():
+        robot_map = {}
+        for name in robots:
+            s = states.get(name)
+            if s is None:
+                robot_map[name] = {'name': name, 'status': 'offline', 'issues': []}
+                continue
+            robot_map[name] = {
+                'name': name,
+                'status': 'error' if s.get('error') else
+                          'working' if s.get('current_path') else 'idle',
+                'task_id': '',
+                'unix_millis_time': now_ms(),
+                'location': {'map': s['map'], 'x': s['position']['x'],
+                             'y': s['position']['y'], 'yaw': s['position']['yaw']},
+                'battery': s['battery'],
+                'issues': [],
             }
         out.append({'name': fleet, 'robots': robot_map})
     return out
@@ -222,6 +246,8 @@ def main():
     parser.add_argument('--port', type=int, default=8000)
     parser.add_argument('--robots-url', default='http://127.0.0.1:7001')
     parser.add_argument('--nav-graph', default=str(ROOT / 'maps' / 'site' / 'nav_graph.yaml'))
+    parser.add_argument('--monitor-fleet', action='append', default=None,
+                        help='Traffic Light fleet=robot1,... (repeatable)')
     parser.add_argument('--fleet', action='append', default=[],
                         help='fleet=robot1,robot2 (repeatable)')
     args = parser.parse_args()
@@ -229,6 +255,11 @@ def main():
     for spec in args.fleet or ['brand_a=brand_a_1,brand_a_2', 'brand_b=brand_b_1']:
         fleet, robots = spec.split('=', 1)
         CFG['fleets'][fleet] = robots.split(',')
+    monitor = args.monitor_fleet if args.monitor_fleet is not None else \
+        ['brand_c=brand_c_1']
+    for spec in monitor:
+        fleet, robots = spec.split('=', 1)
+        CFG['monitor_fleets'][fleet] = robots.split(',')
     graph = yaml.safe_load(Path(args.nav_graph).read_text())
     for level, content in graph['levels'].items():
         for v in content['vertices']:
