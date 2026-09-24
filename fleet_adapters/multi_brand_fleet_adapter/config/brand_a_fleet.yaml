@@ -1,0 +1,53 @@
+# Fleet "brand_a": robots reached through the generic REST contract.
+# For the local demo this points at tools/mock_robot_server.py.
+
+rmf_fleet:
+  name: "brand_a"
+  limits:
+    linear: [0.5, 0.75]   # velocity, acceleration
+    angular: [0.6, 2.0]   # velocity, acceleration
+  profile:
+    footprint: 0.3        # radius in m
+    vicinity: 0.5         # radius in m
+  reversible: True
+  battery_system:
+    voltage: 24.0         # V
+    capacity: 40.0        # Ahr
+    charging_current: 26.4  # A
+  mechanical_system:
+    mass: 80.0            # kg
+    moment_of_inertia: 20.0
+    friction_coefficient: 0.20
+  ambient_system:
+    power: 20.0           # W
+  tool_system:
+    power: 0.0            # W
+  recharge_threshold: 0.10
+  recharge_soc: 1.0
+  publish_fleet_state: 2.0
+  account_for_battery_drain: True
+  task_capabilities:
+    loop: True
+    delivery: True
+  actions: ["wait_at_station"]
+  finishing_request: "park"   # [park, charge, nothing]
+  responsive_wait: True
+  robots:
+    brand_a_1:
+      charger: "charger_a1"
+    brand_a_2:
+      charger: "charger_a2"
+  robot_state_update_frequency: 2.0   # Hz
+
+fleet_manager:
+  driver: generic_rest
+  prefix: "http://127.0.0.1:7001"
+  # token: "..."           # optional bearer token
+  timeout: 3.0
+
+# Optional. Leave out when the robots already use the nav graph's frame.
+# Otherwise give >= 2 matching points (RMF frame vs. robot map frame) per level.
+# reference_coordinates:
+#   L1:
+#     rmf:   [[0.0, 0.0], [10.0, 0.0], [10.0, 4.0], [0.0, 4.0]]
+#     robot: [[12.3, 4.1], [22.3, 4.0], [22.4, 8.0], [12.4, 8.1]]

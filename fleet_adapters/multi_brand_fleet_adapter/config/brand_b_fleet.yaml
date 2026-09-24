@@ -1,0 +1,44 @@
+# Fleet "brand_b": a second vendor, also via the generic REST contract.
+# Different physical limits/footprint from brand_a -- RMF accounts for that
+# when it schedules traffic between the two fleets.
+
+rmf_fleet:
+  name: "brand_b"
+  limits:
+    linear: [0.8, 0.5]
+    angular: [0.8, 1.5]
+  profile:
+    footprint: 0.45
+    vicinity: 0.7
+  reversible: False
+  battery_system:
+    voltage: 48.0
+    capacity: 35.0
+    charging_current: 20.0
+  mechanical_system:
+    mass: 150.0
+    moment_of_inertia: 40.0
+    friction_coefficient: 0.22
+  ambient_system:
+    power: 40.0
+  tool_system:
+    power: 0.0
+  recharge_threshold: 0.15
+  recharge_soc: 1.0
+  publish_fleet_state: 2.0
+  account_for_battery_drain: True
+  task_capabilities:
+    loop: True
+    delivery: True
+  actions: []
+  finishing_request: "charge"
+  responsive_wait: True
+  robots:
+    brand_b_1:
+      charger: "charger_b1"
+  robot_state_update_frequency: 2.0
+
+fleet_manager:
+  driver: generic_rest
+  prefix: "http://127.0.0.1:7001"
+  timeout: 3.0

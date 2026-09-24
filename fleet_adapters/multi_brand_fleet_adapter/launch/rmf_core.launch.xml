@@ -1,0 +1,23 @@
+<?xml version='1.0' ?>
+<!--
+  Headless Open-RMF core: no Gazebo, no RViz, no building model.
+  Based on rmf_demos/launch/common.launch.xml with simulation/visualisation
+  pieces removed.
+-->
+<launch>
+  <arg name="server_uri" default="" description="rmf-web api-server websocket, e.g. ws://localhost:8000/_internal"/>
+  <arg name="bidding_time_window" default="2.0" description="Seconds fleets have to bid on a task"/>
+
+  <node pkg="rmf_traffic_ros2" exec="rmf_traffic_schedule" output="both" name="rmf_traffic_schedule_primary"/>
+  <node pkg="rmf_traffic_ros2" exec="rmf_traffic_blockade" output="both"/>
+
+  <node pkg="rmf_fleet_adapter" exec="door_supervisor"/>
+  <node pkg="rmf_fleet_adapter" exec="lift_supervisor"/>
+  <node pkg="rmf_fleet_adapter" exec="mutex_group_supervisor"/>
+
+  <node pkg="rmf_task_ros2" exec="rmf_task_dispatcher" output="screen">
+    <param name="bidding_time_window" value="$(var bidding_time_window)"/>
+    <param name="use_unique_hex_string_with_task_id" value="true"/>
+    <param name="server_uri" value="$(var server_uri)"/>
+  </node>
+</launch>

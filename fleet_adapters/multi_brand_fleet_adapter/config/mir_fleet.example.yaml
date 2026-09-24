@@ -1,0 +1,55 @@
+# Example: MiR robots on real hardware (not used by the local demo).
+# See multi_brand_fleet_adapter/drivers/mir.py for the one-time mission setup.
+
+rmf_fleet:
+  name: "mir"
+  limits:
+    linear: [1.0, 0.7]
+    angular: [0.6, 1.0]
+  profile:
+    footprint: 0.5
+    vicinity: 0.8
+  reversible: False
+  battery_system:
+    voltage: 24.0
+    capacity: 40.0
+    charging_current: 26.4
+  mechanical_system:
+    mass: 70.0
+    moment_of_inertia: 40.0
+    friction_coefficient: 0.22
+  ambient_system:
+    power: 20.0
+  tool_system:
+    power: 0.0
+  recharge_threshold: 0.20
+  recharge_soc: 1.0
+  publish_fleet_state: 2.0
+  account_for_battery_drain: True
+  task_capabilities:
+    loop: True
+    delivery: True
+  actions: ["dock"]
+  finishing_request: "charge"
+  responsive_wait: False
+  robots:
+    mir_1:
+      charger: "charger_b1"
+  robot_state_update_frequency: 2.0
+
+fleet_manager:
+  driver: mir
+  user: "distributor"
+  password: "CHANGE_ME"
+  move_mission_guid: "00000000-0000-0000-0000-000000000000"
+  action_missions:
+    dock: "00000000-0000-0000-0000-000000000000"
+  robots:
+    mir_1:
+      prefix: "http://192.168.12.20/api/v2.0.0"
+
+# MiR maps use their own origin, so a transform to the RMF frame is needed.
+reference_coordinates:
+  L1:
+    rmf:   [[0.0, 0.0], [10.0, 0.0], [10.0, 4.0], [0.0, 4.0]]
+    robot: [[0.0, 0.0], [10.0, 0.0], [10.0, 4.0], [0.0, 4.0]]

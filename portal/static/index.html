@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Robot Control Portal</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true"></span>
+      <h1>Robot Control Portal</h1>
+    </div>
+    <div class="conn" id="conn"><span class="dot"></span><span id="conn-text">Connecting…</span></div>
+  </header>
+
+  <main>
+    <section class="summary" id="summary" aria-label="Fleet summary"></section>
+
+    <div class="grid">
+      <section class="panel" aria-labelledby="robots-h">
+        <div class="panel-head">
+          <h2 id="robots-h">Robots</h2>
+          <span class="muted" id="updated"></span>
+        </div>
+        <div id="fleets"></div>
+      </section>
+
+      <section class="panel" aria-labelledby="map-h">
+        <div class="panel-head">
+          <h2 id="map-h">Site plan</h2>
+          <span class="muted">top-down from nav graph</span>
+        </div>
+        <svg id="plan" role="img" aria-label="Robot positions on the site plan"></svg>
+        <div class="legend" id="legend"></div>
+      </section>
+    </div>
+
+    <div class="grid">
+      <section class="panel" aria-labelledby="dispatch-h">
+        <div class="panel-head"><h2 id="dispatch-h">Dispatch patrol</h2></div>
+        <form id="patrol-form" class="stack">
+          <label>Route
+            <div class="route" id="route"><span class="muted">Add places below</span></div>
+          </label>
+          <div class="row">
+            <select id="patrol-place" aria-label="Place to add"></select>
+            <button type="button" class="secondary" id="add-place">Add</button>
+            <button type="button" class="ghost" id="clear-route">Clear</button>
+          </div>
+          <div class="row">
+            <label class="grow">Rounds
+              <input id="patrol-rounds" type="number" min="1" max="100" value="1">
+            </label>
+            <label class="grow">Assign to
+              <select id="patrol-target"></select>
+            </label>
+          </div>
+          <button type="submit" class="primary">Dispatch</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-labelledby="tasks-h">
+        <div class="panel-head"><h2 id="tasks-h">Recent tasks</h2></div>
+        <div class="table-wrap">
+          <table class="tasks">
+            <thead><tr><th>Task</th><th>Robot</th><th>Status</th><th>Requested</th><th></th></tr></thead>
+            <tbody id="tasks"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

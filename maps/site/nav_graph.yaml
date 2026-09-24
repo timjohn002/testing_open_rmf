@@ -1,0 +1,49 @@
+# Hand-written RMF navigation graph -- no simulation or 3D model needed.
+#
+# RMF plans and de-conflicts traffic on this graph, so every robot (of every
+# brand) must be able to drive each lane. Coordinates are metres in the RMF
+# frame. For a real site, draw this over your floor plan with rmf_site or
+# traffic-editor and export it, or measure the points and edit this file.
+#
+#   charger_a1 (0,0) ---- j0 (5,0) ---- pickup (10,0)
+#                          |              |
+#   charger_a2 (0,2) ---- j1 (5,2) ---- station_1 (10,2) ---- station_2 (15,2)
+#                          |              |
+#   charger_b1 (0,4) ---- j2 (5,4) ---- dropoff (10,4)
+building_name: site
+levels:
+  L1:
+    vertices:
+    - [0.0, 0.0, {name: charger_a1, is_charger: true, is_parking_spot: true}]  # 0
+    - [0.0, 2.0, {name: charger_a2, is_charger: true, is_parking_spot: true}]  # 1
+    - [0.0, 4.0, {name: charger_b1, is_charger: true, is_parking_spot: true}]  # 2
+    - [5.0, 0.0, {name: ''}]                                                   # 3
+    - [5.0, 2.0, {name: ''}]                                                   # 4
+    - [5.0, 4.0, {name: ''}]                                                   # 5
+    - [10.0, 0.0, {name: pickup, is_holding_point: true}]                      # 6
+    - [10.0, 2.0, {name: station_1}]                                           # 7
+    - [10.0, 4.0, {name: dropoff, is_holding_point: true}]                     # 8
+    - [15.0, 2.0, {name: station_2, is_parking_spot: true}]                    # 9
+    lanes:
+    - [0, 3, {}]
+    - [3, 0, {}]
+    - [1, 4, {}]
+    - [4, 1, {}]
+    - [2, 5, {}]
+    - [5, 2, {}]
+    - [3, 4, {}]
+    - [4, 3, {}]
+    - [4, 5, {}]
+    - [5, 4, {}]
+    - [3, 6, {}]
+    - [6, 3, {}]
+    - [4, 7, {}]
+    - [7, 4, {}]
+    - [5, 8, {}]
+    - [8, 5, {}]
+    - [6, 7, {}]
+    - [7, 6, {}]
+    - [7, 8, {}]
+    - [8, 7, {}]
+    - [7, 9, {}]
+    - [9, 7, {}]

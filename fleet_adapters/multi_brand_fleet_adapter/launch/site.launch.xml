@@ -1,0 +1,21 @@
+<?xml version='1.0' ?>
+<!--
+  RMF core + one fleet adapter per brand.
+  ros2 launch multi_brand_fleet_adapter site.launch.xml nav_graph:=/abs/path/nav_graph.yaml
+-->
+<launch>
+  <arg name="nav_graph" description="Absolute path to the RMF nav graph yaml"/>
+  <arg name="server_uri" default="ws://localhost:8000/_internal"/>
+  <arg name="config_dir" default="$(find-pkg-share multi_brand_fleet_adapter)/config"/>
+
+  <include file="$(find-pkg-share multi_brand_fleet_adapter)/launch/rmf_core.launch.xml">
+    <arg name="server_uri" value="$(var server_uri)"/>
+  </include>
+
+  <!-- Add one block like this per robot brand / fleet. -->
+  <node pkg="multi_brand_fleet_adapter" exec="fleet_adapter" name="brand_a_fleet_adapter" output="both"
+        args="-c $(var config_dir)/brand_a_fleet.yaml -n $(var nav_graph) -s $(var server_uri)"/>
+
+  <node pkg="multi_brand_fleet_adapter" exec="fleet_adapter" name="brand_b_fleet_adapter" output="both"
+        args="-c $(var config_dir)/brand_b_fleet.yaml -n $(var nav_graph) -s $(var server_uri)"/>
+</launch>
